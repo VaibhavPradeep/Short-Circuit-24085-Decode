@@ -5,6 +5,7 @@ import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.internal.system.Deadline;
 
@@ -13,16 +14,46 @@ import java.util.concurrent.TimeUnit;
 @TeleOp(name = "TeleOpDecodeInitial")
 public class TeleOpInitial extends OpMode {
 
+    // TODO: find transfer elapse time
+    double transferElapseTime = 0;
+    ElapsedTime timer = new ElapsedTime();
+    public enum MotifCode{
+        NONE,
+        TAG_ID_1_GPP,
+        TAG_ID_2_PGP,
+        TAG_ID_3_PPG
+
+    };
+
+    enum Motif1GPP{
+        G,
+        P1,
+        P2
+    }
+
+    enum Motif2PGP{
+        P1,
+        G,
+        P2
+    }
+
+    enum Motif3PPG{
+        P1,
+        P2,
+        G
+    }
+
+    MotifCode motifCode = MotifCode.NONE;
+    Motif1GPP motif1 = Motif1GPP.G;
+    Motif2PGP motif2 = Motif2PGP.P1;
+    Motif3PPG motif3 = Motif3PPG.P1;
+
     MecanumDriveCircuit drivetrain = new MecanumDriveCircuit();
     IntakeLiftCamera ILC = new IntakeLiftCamera();
 
     private final int READ_PERIOD = 1;
-    boolean motif1 = false;
-    boolean motif2 = false;
-    boolean motif3 = false;
 
-    private HuskyLens huskyLens;
-    private Deadline rateLimit;
+
 
     /*
     FINISHED: DT: 4 motors
@@ -39,17 +70,7 @@ public class TeleOpInitial extends OpMode {
     @Override
     public void init() {
         drivetrain.initDrive(hardwareMap);
-        ILC.initILC(hardwareMap);
-
-        huskyLens = hardwareMap.get(HuskyLens.class, "huskylens");
-
-        // Rate limiter for telemetry
-        rateLimit = new Deadline(READ_PERIOD, TimeUnit.SECONDS);
-        rateLimit.expire();
-
-        // Choose the algorithm
-        huskyLens.selectAlgorithm(HuskyLens.Algorithm.TAG_RECOGNITION);
-        // huskyLens.selectAlgorithm(HuskyLens.Algorithm.COLOR_RECOGNITION);
+        ILC.initILC(hardwareMap, telemetry);
 
     }
 
@@ -58,71 +79,203 @@ public class TeleOpInitial extends OpMode {
         drivetrain.driveMecanum(gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
         if (gamepad2.dpad_left) {
-            ILC.LateralTurretManualMove("left");
+            ILC.lateralTurretManualMove("left");
         }
         if (gamepad2.dpad_right) {
-            ILC.LateralTurretManualMove("right");
+            ILC.lateralTurretManualMove("right");
         }
         if (gamepad2.dpad_up) {
-            ILC.VerticalTurretManualMove("up");
+            ILC.verticalTurretManualMove("up");
         }
         if (gamepad2.dpad_down) {
-            ILC.VerticalTurretManualMove("down");
+            ILC.verticalTurretManualMove("down");
         }
 
         if (gamepad2.a) {
-            ILC.ShootingOn();
+            ILC.shootingOn();
         }
         if (gamepad2.b) {
-            ILC.ShootingOff();
+            ILC.shootingOff();
         }
 
         if (gamepad2.left_bumper) {
-            ILC.SorterOn();
+            ILC.sorterOn();
         }
         if (gamepad2.right_bumper) {
-            ILC.SorterOff();
+            ILC.sorterOff();
         }
 
         if (gamepad2.x) {
-            ILC.TransferOn();
+            ILC.transferOn();
         }
         if (gamepad2.y) {
-            ILC.TransferOff();
+            ILC.transferOff();
         }
 
         if (gamepad1.left_bumper) {
-            ILC.IntakeOn();
+            ILC.intakeOn();
         }
         if (gamepad1.right_bumper) {
-            ILC.IntakeOff();
+            ILC.intakeOff();
         }
 
-        if (!rateLimit.hasExpired()) {
-            return;
-        }
-        rateLimit.reset();
+        ILC.rateLimit();
 
-        // Get blocks (recognized objects)
-        HuskyLens.Block[] blocks = huskyLens.blocks();
+        // Get blocks and husky lens data
+        HuskyLens.Block[] blocks = ILC.huskyLens.blocks();
         telemetry.addData("Block count", blocks.length);
 
-        for (int i = 0; i < blocks.length; i++) {
-            telemetry.addData("Block", blocks[i].toString());
-            if (blocks[i].id == 1) {
-                motif1 = true;
-                gamepad1.rumble(500);
-                gamepad2.rumble(500);
-            } else if (blocks[i].id == 2) {
-                motif2 = true;
-                gamepad1.rumble(500);
-                gamepad2.rumble(500);
-            } else if (blocks[i].id == 3) {
-                motif3 = true;
-                gamepad1.rumble(500);
-                gamepad2.rumble(500);
+        while (motifCode == MotifCode.NONE) {
+            for (int i = 0; i < blocks.length; i++) {
+                telemetry.addData("Block", blocks[i].toString());
+                if (blocks[i].id == 1) {
+                    MotifCode motifCode = MotifCode.TAG_ID_1_GPP;
+                    gamepad1.rumble(500);
+                    gamepad2.rumble(500);
+                } else if (blocks[i].id == 2) {
+                    MotifCode motifCode = MotifCode.TAG_ID_2_PGP;
+                    gamepad1.rumble(500);
+                    gamepad2.rumble(500);
+                } else if (blocks[i].id == 3) {
+                    MotifCode motifCode = MotifCode.TAG_ID_3_PPG;
+                    gamepad1.rumble(500);
+                    gamepad2.rumble(500);
+                }
             }
         }
+
+        if (motifCode == MotifCode.TAG_ID_1_GPP) {
+            switch(motif1) {
+                case G:
+                    if (ILC.detectGreen()) {
+                        timer.reset();
+                        if (timer.milliseconds() == transferElapseTime) {
+
+                            ILC.leverOff();
+                            ILC.leverOn();
+                            ILC.leverOff();
+                            ILC.transferOn();
+                            motif1 = Motif1GPP.P1;
+                        }
+                    }
+                    break;
+                case P1:
+                    if (ILC.detectPurple()) {
+                        timer.reset();
+                        if (timer.milliseconds() == transferElapseTime) {
+
+                            ILC.leverOff();
+                            ILC.leverOn();
+                            ILC.leverOff();
+                            ILC.transferOn();
+                            motif1 = Motif1GPP.P2;
+                        }
+                    }
+                    break;
+                case P2:
+                    if (ILC.detectPurple()) {
+                        timer.reset();
+                        if (timer.milliseconds() == transferElapseTime) {
+
+                            ILC.leverOff();
+                            ILC.leverOn();
+                            ILC.leverOff();
+                            ILC.transferOn();
+                            motif1 = Motif1GPP.G;
+                        }
+                    }
+                    break;
+            }
+        } else if (motifCode == MotifCode.TAG_ID_2_PGP) {
+            switch(motif2) {
+                case P1:
+                    if (ILC.detectPurple()) {
+                        timer.reset();
+                        if (timer.milliseconds() == transferElapseTime) {
+
+                            ILC.leverOff();
+                            ILC.leverOn();
+                            ILC.leverOff();
+                            ILC.transferOn();
+                            motif2 = Motif2PGP.G;
+                        }
+                    }
+                    break;
+                case G:
+                    if (ILC.detectGreen()) {
+                        timer.reset();
+                        if (timer.milliseconds() == transferElapseTime) {
+
+                            ILC.leverOff();
+                            ILC.leverOn();
+                            ILC.leverOff();
+                            ILC.transferOn();
+                            motif2 = Motif2PGP.P2;
+                        }
+                    }
+                    break;
+                case P2:
+                    if (ILC.detectPurple()) {
+                        timer.reset();
+                        if (timer.milliseconds() == transferElapseTime) {
+
+                            ILC.leverOff();
+                            ILC.leverOn();
+                            ILC.leverOff();
+                            ILC.transferOn();
+                            motif2 = Motif2PGP.P1;
+                        }
+                    }
+                    break;
+            }
+        } else if (motifCode == MotifCode.TAG_ID_3_PPG) {
+            switch(motif3) {
+                case P1:
+                    if (ILC.detectPurple()) {
+                        timer.reset();
+                        if (timer.milliseconds() == transferElapseTime) {
+
+                            ILC.leverOff();
+                            ILC.leverOn();
+                            ILC.leverOff();
+                            ILC.transferOn();
+                            motif3 = Motif3PPG.P2;
+                        }
+                    }
+                    break;
+                case P2:
+                    if (ILC.detectPurple()) {
+                        timer.reset();
+                        if (timer.milliseconds() == transferElapseTime) {
+
+                            ILC.leverOff();
+                            ILC.leverOn();
+                            ILC.leverOff();
+                            ILC.transferOn();
+                            motif3 = Motif3PPG.G;
+                        }
+                    }
+                    break;
+                case G:
+                    if (ILC.detectGreen()) {
+                        timer.reset();
+                        if (timer.milliseconds() == transferElapseTime) {
+
+                            ILC.leverOff();
+                            ILC.leverOn();
+                            ILC.leverOff();
+                            ILC.transferOn();
+                            motif3 = Motif3PPG.P1;
+                        }
+                    }
+                    break;
+                default:
+                    motif3 = Motif3PPG.P1;
+            }
+
+        }
+
+
 
         telemetry.update();
     }
