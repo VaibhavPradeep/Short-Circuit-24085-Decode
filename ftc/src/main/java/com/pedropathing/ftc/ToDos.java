@@ -7,9 +7,8 @@ public class ToDos {
     TODO: FTC Dashboard and test whole robot
     TODO: Implement Pedro Pathing in TeleOp
     TODO: Implement pedro pathing for auto
-    TODO: Code turret
-    TODO:
-    TODO:
+    TODO: FIND REV ORIENTATIONS
+    TODO: TUNE PID VALUES
     Limelight turret: We take the fiducial value of x from limelight,
     with this we set the speed of our CRServo based on the angle of the fiducial
     https://ftc-tech-toolbox.vercel.app/docs/Commonly%20Programmed%20Modules/Turrets
